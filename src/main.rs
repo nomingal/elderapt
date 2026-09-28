@@ -524,17 +524,28 @@ fn run_system_upgrade(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> 
     Ok(())
 }
 
+fn print_cli_help() {
+    println!("Elderapt - Terminal Package Manager for Debian & Flatpak\n");
+    println!("USAGE:");
+    println!("  elderapt [COMMAND] [ARGS]\n");
+    println!("COMMANDS:");
+    println!("  (no command)          Open the interactive main menu (TUI)");
+    println!("  search <term>         Search packages (APT & Flatpak)");
+    println!("  install <package>     Open search pre-filtered by the specified package");
+    println!("  list [filter]         List packages installed on the system");
+    println!("  help, --help, -h      Display this help message\n");
+    println!("EXAMPLES:");
+    println!("  elderapt");
+    println!("  elderapt search firefox");
+    println!("  elderapt install vlc");
+    println!("  elderapt list pipewire");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
     let mut app = App::new();
 
-    // --- PROCESSAMENTO DE ARGUMENTOS CLI ---
+    // --- CLI ARGUMENT PROCESSING ---
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         match args[1].as_str() {
@@ -542,7 +553,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 app.current_screen = AppScreen::SearchInstall;
                 app.active_panel = ActivePanel::SearchInput;
 
-                // Se o utilizador passou um nome de pacote (ex: `elderapt install firefox`)
                 if args.len() > 2 {
                     app.search_query = args[2..].join(" ");
                     app.last_keystroke = Some(Instant::now());
@@ -555,16 +565,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 app.active_panel = ActivePanel::InstalledSearchInput;
                 app.current_screen = AppScreen::InstalledPackages;
 
-                // Se o utilizador passou um filtro (ex: `elderapt list pipewire`)
                 if args.len() > 2 {
                     app.installed_query = args[2..].join(" ");
                 }
 
                 app.filter_installed();
             }
-            _ => {} // Qualquer outro argumento desconhecido abre o menu principal normalmente
+            "help" | "--help" | "-h" => {
+                print_cli_help();
+                return Ok(());
+            }
+            _ => {} // Any other unknown argument opens the main menu normally
         }
     }
+
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
     // Channel returns (query, packages) to verify match
     let (tx, mut rx) = mpsc::channel::<(String, Vec<Package>)>(1);
